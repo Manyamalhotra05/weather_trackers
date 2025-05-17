@@ -21,7 +21,13 @@ google_credential_base64 = os.getenv('GOOGLE_SHEETS_CREDENTIALS')  # Get base64 
 decoded_credentials = base64.b64decode(google_credential_base64).decode('utf-8')  # Decode the base64 string
 
 # Step 2: Convert the decoded JSON string back to a dictionary
-google_credentials_json = json.loads(decoded_credentials)
+creds_json = os.getenv("GOOGLE_CREDENTIALS")
+if not creds_json:
+    raise Exception("❌ GOOGLE_CREDENTIALS environment variable not set")
+
+creds_dict = json.loads(creds_json)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
 
 # Step 3: Save the credentials to a temporary file (needed for Google API authentication)
 with open('google_credential.json', 'w') as creds_file:
