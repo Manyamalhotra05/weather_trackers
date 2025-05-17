@@ -1,31 +1,42 @@
-name: Weather Update Automation
+name: Weather Tracker Automation
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'  # This runs the action every hour (cron syntax)
-  workflow_dispatch:  # This allows you to manually trigger the workflow
+    - cron: "0 * * * *" # Runs hourly
 
 jobs:
-  run_weather_script:
-    runs-on: ubuntu-latest  # The environment to run the action in
+  run-weather:
+    runs-on: ubuntu-latest
+
+    env:
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2  # Check out your code to the runner
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'  # Specify the Python version you need
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt  # Install your dependencies (you must have a requirements.txt)
+          pip install -r requirements.txt
+          sudo apt-get install jq  # Install jq to manipulate JSON if needed
 
-      - name: Run the script
-        env:
-          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}  # Set your Google credentials securely
-          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}  # Store your API key securely in GitHub secrets
+      - name: Write credentials.json
+        shell: bash
         run: |
-          python weather_script.py  # Replace with the actual name of your script
+          echo "$GOOGLE_CREDENTIALS" > credentials.json
+          echo "credentials.json written successfully"
+
+      - name: Verify credentials.json file existence
+        run: |
+          ls -l
+          cat credentials.json
+
+      - name: Run script
+        run: python weather_script.py
