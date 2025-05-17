@@ -1,5 +1,8 @@
-import sys
-import io
+import os
+import base64
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 import requests
 import gspread
 import logging
@@ -9,7 +12,20 @@ from gspread_formatting import CellFormat, TextFormat, Color
 from gspread_formatting import format_cell_range
 
 # ✅ UTF-8 for emoji display
+import sys
+import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# Step 1: Decode the base64 Google credentials
+google_credential_base64 = os.getenv('GOOGLE_SHEETS_CREDENTIALS')  # Get base64 encoded credentials from environment variable
+decoded_credentials = base64.b64decode(google_credential_base64).decode('utf-8')  # Decode the base64 string
+
+# Step 2: Convert the decoded JSON string back to a dictionary
+google_credentials_json = json.loads(decoded_credentials)
+
+# Step 3: Save the credentials to a temporary file (needed for Google API authentication)
+with open('google_credential.json', 'w') as creds_file:
+    json.dump(google_credentials_json, creds_file)
 
 # 🔐 Google Sheets authentication setup
 scope = [
@@ -19,14 +35,14 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+# Step 4: Authenticate using the credentials file
+creds = ServiceAccountCredentials.from_json_keyfile_name('google_credential.json', scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("Cloud Weather Tracker")
 sheet = spreadsheet.sheet1
 
 # 📄 Setup logging
 logging.basicConfig(filename="weather_log.txt", level=logging.INFO, format='%(asctime)s - %(message)s')
-
 
 class WeatherTracker:
     def __init__(self, sheet, api_key):
@@ -136,11 +152,11 @@ class WeatherTracker:
 
 # 🚀 Main automation logic
 if __name__ == "__main__":
-    API_KEY = "ffe869b1d4e961e61b4a1cfe293b53d4"  # 🔑 Replace with your actual API key
+    OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')  # Get API Key from environment
 
     available_cities = ["Dehradun", "Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Jaipur"]
 
-    tracker = WeatherTracker(sheet, API_KEY)
+    tracker = WeatherTracker(sheet, OPENWEATHER_API_KEY)
 
     # ❗ Run this only once or when resetting the sheet
     # tracker.setup_sheet()
