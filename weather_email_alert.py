@@ -1,58 +1,66 @@
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import os
+import json
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from oauth2client.service_account import ServiceAccountCredentials
+import gspread
 
-# Constants
-SHEET_ID = 'YOUR_SHEET_ID'
-SHEET_NAME = 'Sheet1'  # Change if your sheet name is different
-EMAIL_SENDER = 'your_email@example.com'
-EMAIL_PASSWORD = 'your_email_password_or_app_password'
-EMAIL_RECEIVER = 'receiver_email@example.com'
+# Google Sheets API scope
+scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 
-# Set up Google Sheets credentials
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+# Load credentials JSON from environment variable
+creds_json_str = os.environ.get('GOOGLE_CREDENTIALSS')
+
+if not creds_json_str:
+    raise Exception("Environment variable 'GOOGLE_CREDENTIALSS' not found.")
+
+creds_dict = json.loads(creds_json_str)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
+# Open your Google Sheet by name or URL
+sheet = client.open("Your Google Sheet Name Here").sheet1  # Update with your sheet name
+
 def get_last_n_weather(n):
-    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+    # Get all rows as records
+    all_rows = sheet.get_all_records()
+    # Return last n records
+    return all_rows[-n:]
 
-    # Use row 2 as header because row 1 has "weather update log"
-    all_rows = sheet.get_all_records(head=2)
+def check_weather_for_alert(records):
+    # Check if any of the last records have 'Main' as Clouds or Rain
+    for record in records:
+        main_condition = record.get('Main', '').lower()
+        if 'cloud' in main_condition or 'rain' in main_condition:
+            return True
+    return False
 
-    return all_rows[-n:] if len(all_rows) >= n else all_rows
+def send_email_alert():
+    email_user = os.environ.get('EMAIL_USER')
+    email_password = os.environ.get('EMAIL_HOST_PASSWORD')
+    to_email = os.environ.get('TO_EMAIL')
 
-def send_email(subject, body):
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_RECEIVER
+    if not (email_user and email_password and to_email):
+        raise Exception("Email credentials or recipient email missing in environment variables.")
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
+    msg = MIMEMultipart()
+    msg['From'] = email_user
+    msg['To'] = to_email
+    msg['Subject'] = "Weather Alert: Clouds or Rain Detected"
 
-def check_and_alert():
-    last_4_weather = get_last_n_weather(4)
+    body = "The recent weather updates show clouds or rain conditions. Please take necessary precautions."
+    msg.attach(MIMEText(body, 'plain'))
 
-    bad_weather_found = False
-    body_lines = []
-
-    for entry in last_4_weather:
-        weather_main = entry.get("main", "")
-        if weather_main in ["Clouds", "Rain"]:
-            bad_weather_found = True
-            line = f"{entry['time']} in {entry['city']}: {weather_main} ({entry['condition']})"
-            body_lines.append(line)
-
-    if bad_weather_found:
-        subject = "⚠️ Weather Alert: Bad Weather Detected"
-        body = "\n".join(body_lines)
-        send_email(subject, body)
-        print("Weather alert email sent.")
-    else:
-        print("Weather is clear. No email sent.")
+    # Setup SMTP server (example for Gmail)
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login(email_user, email_password)
+    text = msg.as_string()
+    server.sendmail(email_user, to_email, text)
+    server.quit()
 
 if __name__ == "__main__":
-    check_and_alert()
+    last_4_weather = get_last_n_weather(4)
+    if check_weather_for_alert(last_4_weather):
+        send_email_alert()
