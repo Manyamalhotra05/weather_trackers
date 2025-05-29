@@ -5,7 +5,7 @@ from email.message import EmailMessage
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
-# Google Sheets setup (same as your main script)
+# Google Sheets setup
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -25,17 +25,20 @@ sheet = spreadsheet.sheet1
 # Email config from environment variables
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-TO_EMAIL = os.getenv("TO_EMAIL")
+TO_EMAIL = os.getenv("TO_EMAIL")  # comma separated emails
 
 if not EMAIL_USER or not EMAIL_PASS or not TO_EMAIL:
     raise Exception("❌ EMAIL_USER, EMAIL_PASS or TO_EMAIL environment variables not set")
 
-def send_email(subject, body, to_email, email_user, email_pass):
-    msg = MIMEMultipart()
+# Split TO_EMAIL string by comma and strip spaces
+to_emails = [email.strip() for email in TO_EMAIL.split(",")]
+
+def send_email(subject, body, to_emails, email_user, email_pass):
+    msg = EmailMessage()
     msg['From'] = email_user
-    msg['To'] = to_email
+    msg['To'] = ", ".join(to_emails)
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
+    msg.set_content(body)
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
@@ -77,6 +80,6 @@ if __name__ == "__main__":
         body += "\n".join(alert_messages)
         body += "\n\nPlease take necessary precautions."
 
-        send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
+        send_email(subject, body, to_emails, EMAIL_USER, EMAIL_PASS)
     else:
         print("No alert needed. No Clouds or Rain in last 4 entries.")
