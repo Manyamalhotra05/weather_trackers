@@ -19,7 +19,7 @@ client = gspread.authorize(creds)
 sheet = client.open("Cloud Weather Tracker").sheet1
 
 def get_last_n_weather(n):
-    all_rows = sheet.get_all_records()
+    all_rows = sheet.get_all_records(head=4)
     # Defensive: if fewer than n records exist, just return all available
     return all_rows[-n:] if len(all_rows) >= n else all_rows
 
