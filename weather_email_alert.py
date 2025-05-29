@@ -1,7 +1,8 @@
 import os
 import json
 import smtplib
-from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
@@ -24,21 +25,18 @@ sheet = spreadsheet.sheet1
 
 # Email config from environment variables
 EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-TO_EMAIL = os.getenv("TO_EMAIL")  # comma separated emails
+EMAIL_PASS = os.getenv("EMAIL_HOST_PASSWORD")
+TO_EMAIL = os.getenv("TO_EMAIL")
 
 if not EMAIL_USER or not EMAIL_PASS or not TO_EMAIL:
-    raise Exception("❌ EMAIL_USER, EMAIL_PASS or TO_EMAIL environment variables not set")
+    raise Exception("❌ EMAIL_USER, EMAIL_HOST_PASSWORD or TO_EMAIL environment variables not set")
 
-# Split TO_EMAIL string by comma and strip spaces
-to_emails = [email.strip() for email in TO_EMAIL.split(",")]
-
-def send_email(subject, body, to_emails, email_user, email_pass):
-    msg = EmailMessage()
+def send_email(subject, body, to_email, email_user, email_pass):
+    msg = MIMEMultipart()
     msg['From'] = email_user
-    msg['To'] = ", ".join(to_emails)
+    msg['To'] = to_email
     msg['Subject'] = subject
-    msg.set_content(body)
+    msg.attach(MIMEText(body, 'plain'))
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
@@ -80,6 +78,6 @@ if __name__ == "__main__":
         body += "\n".join(alert_messages)
         body += "\n\nPlease take necessary precautions."
 
-        send_email(subject, body, to_emails, EMAIL_USER, EMAIL_PASS)
+        send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
     else:
         print("No alert needed. No Clouds or Rain in last 4 entries.")
