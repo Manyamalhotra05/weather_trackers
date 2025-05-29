@@ -1,9 +1,9 @@
 import os
+import json
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import gspread
+from email.message import EmailMessage
 from oauth2client.service_account import ServiceAccountCredentials
+import gspread
 
 # Google Sheets setup (same as your main script)
 scope = [
