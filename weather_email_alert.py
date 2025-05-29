@@ -16,7 +16,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', sco
 client = gspread.authorize(creds)
 
 # Open your Google Sheet by name - update the sheet name here
-sheet = client.open("Your Google Sheet Name Here").sheet1
+sheet = client.open("Cloud Weather Tracker").sheet1
 
 def get_last_n_weather(n):
     all_rows = sheet.get_all_records()
