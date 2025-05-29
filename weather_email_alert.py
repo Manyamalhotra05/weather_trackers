@@ -46,38 +46,26 @@ def send_email(subject, body, to_email, email_user, email_pass):
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
-def get_last_n_weather(n=4):
-    all_rows = sheet.get_all_records()
+def get_last_n_main(n=4):
+    all_rows = sheet.get_all_records(expected_headers=["🌀 Main"])
     if not all_rows:
         print("No data found in sheet")
         return []
     return all_rows[-n:]
 
 if __name__ == "__main__":
-    last_4_weather = get_last_n_weather(4)
+    last_4_main = get_last_n_main(4)
     alert_needed = False
-    alert_messages = []
 
-    for weather in last_4_weather:
+    for weather in last_4_main:
         main_condition = weather.get("🌀 Main")
-        city = weather.get("🏙️ City")
-        condition_desc = weather.get("🌦️ Condition")
-        icon = weather.get("🖼️ Icon")
-        temp = weather.get("🌡️ Temperature")
-        humidity = weather.get("💧 Humidity")
-
         if main_condition in ["Clouds", "Rain"]:
             alert_needed = True
-            alert_messages.append(
-                f"{city}: {condition_desc} {icon}, Temp: {temp}°C, Humidity: {humidity}%"
-            )
+            break
 
     if alert_needed:
-        subject = "Weather Alert: Clouds/Rain detected in recent updates"
-        body = "Weather updates with clouds or rain detected in last 4 entries:\n\n"
-        body += "\n".join(alert_messages)
-        body += "\n\nPlease take necessary precautions."
-
+        subject = "🌧️ Weather Alert: Clouds or Rain Detected"
+        body = "Clouds or Rain was detected in the last 4 weather updates.\nStay safe and carry an umbrella! ☔"
         send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
     else:
-        print("No alert needed. No Clouds or Rain in last 4 entries.")
+        print("✅ No alert needed. Weather looks clear.")
