@@ -1,71 +1,58 @@
-import os
-import json
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import smtplib
+from email.mime.text import MIMEText
 
-# Google Sheets setup
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/drive"
-]
+# Constants
+SHEET_ID = 'YOUR_SHEET_ID'
+SHEET_NAME = 'Sheet1'  # Change if your sheet name is different
+EMAIL_SENDER = 'your_email@example.com'
+EMAIL_PASSWORD = 'your_email_password_or_app_password'
+EMAIL_RECEIVER = 'receiver_email@example.com'
 
-GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
-if not GOOGLE_CREDENTIALS:
-    raise Exception("❌ GOOGLE_CREDENTIALS environment variable not set")
-
-creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(GOOGLE_CREDENTIALS), scope)
+# Set up Google Sheets credentials
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(creds)
-spreadsheet = client.open("Cloud Weather Tracker")
-sheet = spreadsheet.sheet1
 
-# Email config from environment variables
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_HOST_PASSWORD")
-TO_EMAIL = os.getenv("TO_EMAIL")
+def get_last_n_weather(n):
+    sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
-if not EMAIL_USER or not EMAIL_PASS or not TO_EMAIL:
-    raise Exception("❌ EMAIL_USER, EMAIL_HOST_PASSWORD or TO_EMAIL environment variables not set")
+    # Use row 2 as header because row 1 has "weather update log"
+    all_rows = sheet.get_all_records(head=2)
 
-def send_email(subject, body, to_email, email_user, email_pass):
-    msg = MIMEMultipart()
-    msg['From'] = email_user
-    msg['To'] = to_email
+    return all_rows[-n:] if len(all_rows) >= n else all_rows
+
+def send_email(subject, body):
+    msg = MIMEText(body)
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-    try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(email_user, email_pass)
-            server.send_message(msg)
-        print("✅ Alert email sent successfully!")
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
 
-def get_last_n_main(n=4):
-    all_rows = sheet.get_all_records(expected_headers=["🌀 Main"])
-    if not all_rows:
-        print("No data found in sheet")
-        return []
-    return all_rows[-n:]
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
+
+def check_and_alert():
+    last_4_weather = get_last_n_weather(4)
+
+    bad_weather_found = False
+    body_lines = []
+
+    for entry in last_4_weather:
+        weather_main = entry.get("main", "")
+        if weather_main in ["Clouds", "Rain"]:
+            bad_weather_found = True
+            line = f"{entry['time']} in {entry['city']}: {weather_main} ({entry['condition']})"
+            body_lines.append(line)
+
+    if bad_weather_found:
+        subject = "⚠️ Weather Alert: Bad Weather Detected"
+        body = "\n".join(body_lines)
+        send_email(subject, body)
+        print("Weather alert email sent.")
+    else:
+        print("Weather is clear. No email sent.")
 
 if __name__ == "__main__":
-    last_4_main = get_last_n_main(4)
-    alert_needed = False
-
-    for weather in last_4_main:
-        main_condition = weather.get("🌀 Main")
-        if main_condition in ["Clouds", "Rain"]:
-            alert_needed = True
-            break
-
-    if alert_needed:
-        subject = "🌧️ Weather Alert: Clouds or Rain Detected"
-        body = "Clouds or Rain was detected in the last 4 weather updates.\nStay safe and carry an umbrella! ☔"
-        send_email(subject, body, TO_EMAIL, EMAIL_USER, EMAIL_PASS)
-    else:
-        print("✅ No alert needed. Weather looks clear.")
+    check_and_alert()
