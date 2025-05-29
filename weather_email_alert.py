@@ -6,22 +6,27 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
 # Google Sheets API scope
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+scope = [
+    'https://spreadsheets.google.com/feeds',
+    'https://www.googleapis.com/auth/drive'
+]
 
-# Load credentials from the JSON file written by GitHub Action workflow
+# Authenticate with Google Sheets API using your credentials JSON file
 creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
 client = gspread.authorize(creds)
 
-# Open your Google Sheet by name or URL
-sheet = client.open("Your Google Sheet Name Here").sheet1  # <-- Update with your sheet name or URL
+# Open your Google Sheet by name - update the sheet name here
+sheet = client.open("Your Google Sheet Name Here").sheet1
 
 def get_last_n_weather(n):
     all_rows = sheet.get_all_records()
-    return all_rows[-n:]
+    # Defensive: if fewer than n records exist, just return all available
+    return all_rows[-n:] if len(all_rows) >= n else all_rows
 
 def check_weather_for_alert(records):
     for record in records:
         main_condition = record.get('Main', '').lower()
+        # Check if 'cloud' or 'rain' is in the weather main condition
         if 'cloud' in main_condition or 'rain' in main_condition:
             return True
     return False
@@ -42,11 +47,11 @@ def send_email_alert():
     body = "The recent weather updates show clouds or rain conditions. Please take necessary precautions."
     msg.attach(MIMEText(body, 'plain'))
 
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(email_user, email_password)
-    server.sendmail(email_user, to_email, msg.as_string())
-    server.quit()
+    # Connect to Gmail SMTP server and send email
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        server.starttls()
+        server.login(email_user, email_password)
+        server.sendmail(email_user, to_email, msg.as_string())
 
 if __name__ == "__main__":
     last_4_weather = get_last_n_weather(4)
